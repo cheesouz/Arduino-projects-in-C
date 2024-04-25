@@ -8,3 +8,6 @@ void lightDownOneLed(int);
 void lightDownMultipleLeds (uint8_t);
 void lightDownAllLeds (); 
 void lightToggleOneLed(int lednumber);
+void dimLed (int lednumber, int percentage, int duration);
+void fadeInLed (int led, int duration);
+void fadeOutLed (int led, int duration);

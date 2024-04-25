@@ -1,3 +1,4 @@
+#define __DELAY_BACKWARD_COMPATIBLE__  
 #include <util/delay.h>
 #include <avr/io.h>
 
@@ -56,4 +57,29 @@ void lightDownAllLeds (){
 void lightToggleOneLed(int lednumber){
     if ( lednumber < 0 || lednumber > 3 ) return;
     PORTB ^= (1 << ( PB2 + lednumber ));
+};
+
+void dimLed (int lednumber, int percentage, int duration){
+    if (lednumber < 0 || lednumber > 3 || percentage > 100 || percentage < 0) return;
+
+    int timeOn = percentage/10;
+    int timeOff = 10 - timeOn;
+    for (int i = 0; i< (duration); i++){
+        lightUpOneLed(lednumber);
+        _delay_ms(timeOn);
+        lightDownOneLed(lednumber);
+        _delay_ms(timeOff);
+        };
+
+};
+
+void fadeInLed (int led, int duration){
+for (int i = 1; i < duration; i++){
+    int currentDimLevel = i*100/duration;
+    dimLed(led, currentDimLevel, duration/100);
+};
+};
+
+void fadeOutLed (int led, int duration){
+
 };

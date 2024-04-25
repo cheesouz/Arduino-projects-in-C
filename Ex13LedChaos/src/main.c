@@ -1,8 +1,8 @@
+#define __DELAY_BACKWARD_COMPATIBLE__  
 #include <Arduino.h>
 #include <util/delay.h> 
 #include <led.h>
 #include <stdlib.h>
-#define __DELAY_BACKWARD_COMPATIBLE__  
 
 int main(int argc, char const *argv[])
 {
@@ -12,7 +12,8 @@ int main(int argc, char const *argv[])
 
 while (1)
 {
-  lightUpOneLed(rand())
+  lightToggleOneLed(rand()%4);
+  _delay_ms(rand() % 1000);
 }
 
 
