@@ -1,16 +1,15 @@
 ## Lucy Poplawska ACS105A - Infrastructure 2 Projects
 
-    .----.   @   @
-   / .-"-.`.  \v/
-   | | '\ \ \_/ )
- ,-\ `-.' /.'  /
-'---`----'----'
-
 ### Week 1
 - [x] LED library
 - [x] LED dimmer
 - [x] LED chaos
 ### Week 2
+- [] Morse Trainer
+- [] Simon Says
+Exercises: 2.7.1
 ### Week 3
+- [] Nim
+Exercises: 3.5.1, 3.5.2
 ### Week 4
 

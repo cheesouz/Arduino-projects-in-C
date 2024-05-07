@@ -79,7 +79,3 @@ for (int i = 1; i < duration; i++){
     dimLed(led, currentDimLevel, duration/100);
 };
 };
-
-void fadeOutLed (int led, int duration){
-
-};
