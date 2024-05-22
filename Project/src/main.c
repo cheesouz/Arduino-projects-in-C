@@ -12,17 +12,22 @@
 #define BUTTON_DDR DDRC
 #define BUTTON1 PC1
 #define BUTTON3 PC3
+#define INITIAL_GAME_SPEED 400
 
 
 static int counter = 0;
 static int dinoPos = 1;
 static int dinoMoveFlag = 1;
-const int gameSpeed = 400;
+static int gameSpeed = INITIAL_GAME_SPEED;
+static int lives = 4;
+static int points = 0;
+static uint8_t arrowPosition = 4;
+static uint8_t arrowHeight = 1;
 
 /* Segment byte maps for dino's positions: up, normal, down */
 const uint8_t DINO_POS[] =  {0x9C, 0xA3, 0xF7};
 
-/* Segment byte maps for arrow's positions */
+/* Segment byte maps for arrow's positions: up, normal, down */
 const uint8_t ARROW_HEIGHT[] =  {0xFE, 0xBF, 0xF7};
 
 /* Byte maps to select digit 1 to 4 */
@@ -75,12 +80,46 @@ void displayDino(uint8_t value) {
   sbi(PORTD, LATCH_DIO);
 }
 
+void shootNewArrow(){
+  arrowHeight = rand()%3;
+  arrowPosition = 4;
+}
+
+void loseLife(){
+  lives--;
+  gameSpeed = INITIAL_GAME_SPEED;
+  printf("You lost a life!\n");
+  //to ensure that the correct number of lives is displayed
+  lightDownAllLeds();
+  //ToDo: play sound
+}
+
+void handleCollision() {
+  bool collision = 0;
+  switch (arrowHeight) {
+      case 0:
+          collision = (dinoPos == 0);
+          break;
+      case 1:
+          collision = (dinoPos != 2);
+          break;
+      case 2:
+          collision = (dinoPos != 0);
+          break;
+  }
+  if (collision) {
+      loseLife();
+  } else {
+      points++;
+      printf("Points: %d\n", points);
+  }
+}
+
 ISR( PCINT1_vect ){
   if (bit_is_clear(BUTTON_PIN, BUTTON1)){
     //debounce
     _delay_ms( 50 );
     if (bit_is_clear(BUTTON_PIN, BUTTON1)){
-      printf("Button 1 pressed in interrupt\n");
       //ToDo: Check if dino is in a neutral position
       if (dinoMoveFlag == 1){ dinoMoveFlag = 0; }
   }
@@ -89,24 +128,21 @@ ISR( PCINT1_vect ){
     //debounce
     _delay_ms( 50 );
     if (bit_is_clear(BUTTON_PIN, BUTTON3)){
-      printf("Button 2 pressed in interrupt\n");
       if (dinoMoveFlag == 1){ dinoMoveFlag = 2; }
   }
-
   }
-
 }
 
 ISR(TIMER0_OVF_vect) {
-    static uint8_t currentSegment = 4;
-    static uint8_t arrowHeight = 1; // Position index
-    static uint8_t arrowPosition = 4;
-    static int savedArrowCounter = gameSpeed;
+    // static uint8_t currentSegment = 4;
+    // currentSegment = currentSegment % 4 + 1;
+
+    static int savedArrowCounter = INITIAL_GAME_SPEED;
     static int savedDinoCounter = 0;
 
-    counter++;
+    lightUpMultipleLeds(lives);
 
-    currentSegment = currentSegment % 4 + 1;
+    counter++;
 
     displayArrow(arrowPosition, ARROW_HEIGHT[arrowHeight]);
     displayDino(dinoPos);
@@ -136,20 +172,24 @@ ISR(TIMER0_OVF_vect) {
     
     //update arrow
     if (counter - savedArrowCounter == gameSpeed){
-      printf("Arrow: ");
-      //this is where we shoot the new arrow
-      if (arrowPosition == 1){
-        arrowHeight = rand()%3;
-        arrowPosition = 4;
-        printf("new arrow on %d\n", arrowPosition);
-      } else {
-        arrowPosition--;
-        printf("arrow moved at %d\n", arrowPosition);
-      }
-      //relative time of when was the last time the arrow was moved
-      savedArrowCounter = counter;
+        //this is where we shoot the new arrow
+        if (arrowPosition == 1){
+            handleCollision();
+            shootNewArrow();
+        } else {
+            arrowPosition--;
+        }
+        //relative time of when was the last time the arrow was moved
+        savedArrowCounter = counter;
     }
-    
+
+    //lazy way...
+    if (points > 0 && points % 10 == 0) {
+        gameSpeed = (int)(gameSpeed * 0.8 + 0.5);
+        printf("Time to speed up! Game Speed: %d\n", gameSpeed);
+        points++;  // Increment points to avoid repeated speeding up on the same point threshold
+    }
+
 }
 
 
@@ -159,16 +199,22 @@ int main(){
   printf("START\n");
   initTimer0();
   setupButtons();
+  //ToDo: add potentiometer as a seed for random
   srand(0);
   enableAllLeds();
+  lightDownAllLeds();
 
-
-  int lives = 4;
   while (lives > 0){
-    sei();
-    lightUpMultipleLeds(lives);
+     sei();
 
   }
-  
+  cli();
+  printf("Game lost\n");
+  printf("Points: %d\n", points);
+  writeStringAndWait("GAME", 800);
+  writeStringAndWait("DONE", 800);
+  writeString("    ");
+
+  //ToDo: add sound at the end of the game
   return 0;
 }
