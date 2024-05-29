@@ -7,32 +7,43 @@
 #include <led.h>
 #include <buzzer.h>
 #include <avr/interrupt.h>
+#include <stdio.h>
 
 #define BUTTON_PORT PORTC
 #define BUTTON_PIN PINC
 #define BUTTON_DDR DDRC
 #define BUTTON1 PC1
 #define BUTTON3 PC3
-#define INITIAL_GAME_SPEED 400
-
+#define INITIAL_GAME_SPEED 500
+#define INITIAL_NUMBER_OF_LIVES 4
 
 static int counter = 0;
 static int dinoPos = 1;
 static int dinoMoveFlag = 1;
 static int gameSpeed = INITIAL_GAME_SPEED;
-static int lives = 4;
-static int points = 0;
-static uint8_t arrowPosition = 4;
-static uint8_t arrowHeight = 1;
+static int currentScore = 0;
+static int lives = INITIAL_NUMBER_OF_LIVES;
+static int updateArrayOfScoresFlag = 0;
 
-/* Segment byte maps for dino's positions: up, normal, down */
-const uint8_t DINO_POS[] =  {0x9C, 0xA3, 0xF7};
+// initiating arrowPosition and arrowHeight using pointers
+  static int arrowPosition = 4;
+  int* pArrowPosition = &arrowPosition;
 
-/* Segment byte maps for arrow's positions: up, normal, down */
-const uint8_t ARROW_HEIGHT[] =  {0xFE, 0xBF, 0xF7};
+  static int arrowHeight = 1;
+  int* pArrowHeight = &arrowHeight;
 
-/* Byte maps to select digit 1 to 4 */
-const uint8_t SEGMENTS[] = {0xF1, 0xF2, 0xF4, 0xF8};
+void initADC()
+{
+    ADMUX |= (1 << REFS0);                                // Set up the reference voltage. We choose 5V as the reference.
+    ADMUX &= ~(1 << MUX3  ) & ~(1 << MUX2  ) & ~(1 << MUX1 ) & ~(1 << MUX0 );
+                                                          //Set MUX0-3 to zero to read analog input from PC0
+                                                          //Default is 0000 so this setting is not really necessary     
+    ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); // Determine the sample rate by setting the division factor to 128.
+    ADCSRA |= (1 << ADEN);                                // Enable the ADC
+    ADCSRA |= (1 << ADATE);                               // Enable ADC Auto Triggering
+    ADCSRB = 0;                                                // Set ADC Auto Trigger Source to Free Running Mode (default)
+    ADCSRA |= (1 << ADSC);                                // Start the analog-to-digital conversion
+}
 
 void initTimer0()
 {
@@ -47,20 +58,6 @@ void initTimer0()
     // Enable interrupts for overflow: TCNT0 == TOP
     TIMSK0 |= _BV(TOIE0); // enable overflow interrupt
 }
-void clearDisplay(){
-    cbi(PORTD, LATCH_DIO);
-    shift(0x00, MSBFIRST); 
-    shift(0x00, MSBFIRST); 
-    sbi(PORTD, LATCH_DIO);
-}
-
-void displayArrow(uint8_t segment, uint8_t height) {
-  clearDisplay();
-  cbi(PORTD, LATCH_DIO);
-  shift(height, MSBFIRST);
-  shift(SEGMENTS[segment-1], MSBFIRST);
-  sbi(PORTD, LATCH_DIO);
-}
 
 void setupButtons(){
   BUTTON_DDR &= ~_BV( BUTTON1 );          
@@ -73,31 +70,24 @@ void setupButtons(){
   PCMSK1 |= _BV( BUTTON3 );
 }
 
-void displayDino(uint8_t value) {
-  clearDisplay();
-  cbi(PORTD, LATCH_DIO);
-  shift(DINO_POS[value], MSBFIRST);
-  shift(0xF1, MSBFIRST);
-  sbi(PORTD, LATCH_DIO);
-}
-
 void shootNewArrow(){
-  arrowHeight = rand()%3;
-  arrowPosition = 4;
+  *pArrowHeight = rand()%3;
+  *pArrowPosition = 4;
 }
 
 void loseLife(){
+  updateArrayOfScoresFlag = 1;
   lives--;
   gameSpeed = INITIAL_GAME_SPEED;
   printf("You lost a life!\n");
   //to ensure that the correct number of lives is displayed
   lightDownAllLeds();
-  //ToDo: play sound
+  playTone(A5, 800);
 }
 
-void handleCollision() {
+void handleCollision(int *arrowHeight) {
   int collision = 0;
-  switch (arrowHeight) {
+  switch (*arrowHeight) {
       case 0:
           collision = (dinoPos == 0);
           break;
@@ -111,9 +101,19 @@ void handleCollision() {
   if (collision) {
       loseLife();
   } else {
-      points++;
-      printf("Points: %d\n", points);
+      currentScore++;
+      printf("Current score: %d\n", currentScore);
   }
+}
+
+void increaseSpeed() {
+    static int lastSpeedIncreaseScore = 0; // Track the score at the last speed increase
+
+    if (currentScore > lastSpeedIncreaseScore && (currentScore - lastSpeedIncreaseScore) >= 3) {
+        gameSpeed = (int)(gameSpeed * 0.8 + 0.5);
+        printf("Time to speed up! Game Speed: %d\n", gameSpeed);
+        lastSpeedIncreaseScore = currentScore; // Update the last speed increase score
+    }
 }
 
 ISR( PCINT1_vect ){
@@ -135,18 +135,10 @@ ISR( PCINT1_vect ){
 }
 
 ISR(TIMER0_OVF_vect) {
-    // static uint8_t currentSegment = 4;
-    // currentSegment = currentSegment % 4 + 1;
-
     static int savedArrowCounter = INITIAL_GAME_SPEED;
     static int savedDinoCounter = 0;
 
-    lightUpMultipleLeds(lives);
-
     counter++;
-
-    displayArrow(arrowPosition, ARROW_HEIGHT[arrowHeight]);
-    displayDino(dinoPos);
 
     //dino recieves the information that it's supposed to move
     if (dinoMoveFlag != 1){
@@ -168,71 +160,77 @@ ISR(TIMER0_OVF_vect) {
           savedDinoCounter = 0; //redundant?
         }
       }
-
     }
-    
+    displayDino(dinoPos);
+
     //update arrow
-    if (counter - savedArrowCounter == gameSpeed){
-        //this is where we shoot the new arrow
-        if (arrowPosition == 1){
-            handleCollision();
+    if (counter - savedArrowCounter >= gameSpeed) {
+        displayArrow(*pArrowPosition, *pArrowHeight);
+        if (*pArrowPosition == 1) {
+            handleCollision(pArrowHeight);
             shootNewArrow();
         } else {
-            arrowPosition--;
+            (*pArrowPosition)--;
         }
         //relative time of when was the last time the arrow was moved
         savedArrowCounter = counter;
     }
-
-    //lazy way...
-    if (points > 0 && points % 10 == 0) {
-        gameSpeed = (int)(gameSpeed * 0.8 + 0.5);
-        printf("Time to speed up! Game Speed: %d\n", gameSpeed);
-        points++;  // Increment points to avoid repeated speeding up on the same point threshold
-    }
-
 }
-
-void initADC()
-{
-    ADMUX |= (1 << REFS0);                                // Set up the reference voltage. We choose 5V as the reference.
-    ADMUX &= ~(1 << MUX3  ) & ~(1 << MUX2  ) & ~(1 << MUX1 ) & ~(1 << MUX0 );
-                                                          //Set MUX0-3 to zero to read analog input from PC0
-                                                          //Default is 0000 so this setting is not really necessary     
-    ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); // Determine the sample rate by setting the division factor to 128.
-    ADCSRA |= (1 << ADEN);                                // Enable the ADC
-    ADCSRA |= (1 << ADATE);                               // Enable ADC Auto Triggering
-    ADCSRB = 0;                                                // Set ADC Auto Trigger Source to Free Running Mode (default)
-    ADCSRA |= (1 << ADSC);                                // Start the analog-to-digital conversion
-}
-
 
 int main(){
   initUSART();
   initDisplay();
-  // enableBuzzer();
-  printf("\n\n\nSTART\n");
   initTimer0();
   setupButtons();
+  printf("\n\n\nSTART\n");
+
+  enableAllLeds();
+  lightDownAllLeds();
+
   initADC();
   printf("Rotate the potentiometer to generate a seed.\n");
-  _delay_ms(5300);
+  niceLedLightUp(200);
   uint16_t value = ADC;
   printf("Seed value: %d\n", value);
   srand(value);
-  enableAllLeds();
-  lightDownAllLeds();
-  writeStringAndWait("GO", 500);
+
+  int* arrayOfScores = calloc(INITIAL_NUMBER_OF_LIVES, sizeof(int));
+
+  writeStringAndWait("GO  ", 800);
+  sei();
 
   while (lives > 0){
-     sei();
+    lightUpMultipleLeds(lives);
+    displayArrow(*pArrowPosition, *pArrowHeight);
 
+    increaseSpeed();
+
+    if (updateArrayOfScoresFlag){
+      updateArrayOfScoresFlag = 0;
+      int idx = INITIAL_NUMBER_OF_LIVES - lives - 1;
+      printf("\t\t\t\t\t\tScore from round %d: %d\n", idx, currentScore);
+      arrayOfScores[idx] = currentScore;
+      currentScore = 0;
+    }
   }
   cli();
-  printf("Game lost\n");
-  printf("Points: %d\n", points);
+
+  printf("\nGame lost\n\n");
+  playTone(C6, 1500);
+
+  int totalScore = 0;
+
+  for (int i = 0; i < INITIAL_NUMBER_OF_LIVES; i++)
+  {
+    totalScore += arrayOfScores[i];
+    printf("Points from round %d: %d\n", i+1, arrayOfScores[i]);
+  }
+  printf("Total score: %d\n\n", totalScore);
+  free(arrayOfScores);
+
   writeStringAndWait("GAME", 800);
   writeStringAndWait("DONE", 800);
+  writeNumberAndWait(totalScore, 800);
   writeString("    ");
 
   //ToDo: add sound at the end of the game
