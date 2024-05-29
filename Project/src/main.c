@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <usart.h>
 #include <display.h>
 #include <avr/io.h>
@@ -6,6 +5,8 @@
 #include <button.h>
 #include <stdlib.h>
 #include <led.h>
+#include <buzzer.h>
+#include <avr/interrupt.h>
 
 #define BUTTON_PORT PORTC
 #define BUTTON_PIN PINC
@@ -95,7 +96,7 @@ void loseLife(){
 }
 
 void handleCollision() {
-  bool collision = 0;
+  int collision = 0;
   switch (arrowHeight) {
       case 0:
           collision = (dinoPos == 0);
@@ -192,17 +193,36 @@ ISR(TIMER0_OVF_vect) {
 
 }
 
+void initADC()
+{
+    ADMUX |= (1 << REFS0);                                // Set up the reference voltage. We choose 5V as the reference.
+    ADMUX &= ~(1 << MUX3  ) & ~(1 << MUX2  ) & ~(1 << MUX1 ) & ~(1 << MUX0 );
+                                                          //Set MUX0-3 to zero to read analog input from PC0
+                                                          //Default is 0000 so this setting is not really necessary     
+    ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); // Determine the sample rate by setting the division factor to 128.
+    ADCSRA |= (1 << ADEN);                                // Enable the ADC
+    ADCSRA |= (1 << ADATE);                               // Enable ADC Auto Triggering
+    ADCSRB = 0;                                                // Set ADC Auto Trigger Source to Free Running Mode (default)
+    ADCSRA |= (1 << ADSC);                                // Start the analog-to-digital conversion
+}
+
 
 int main(){
   initUSART();
   initDisplay();
-  printf("START\n");
+  // enableBuzzer();
+  printf("\n\n\nSTART\n");
   initTimer0();
   setupButtons();
-  //ToDo: add potentiometer as a seed for random
-  srand(0);
+  initADC();
+  printf("Rotate the potentiometer to generate a seed.\n");
+  _delay_ms(5300);
+  uint16_t value = ADC;
+  printf("Seed value: %d\n", value);
+  srand(value);
   enableAllLeds();
   lightDownAllLeds();
+  writeStringAndWait("GO", 500);
 
   while (lives > 0){
      sei();
@@ -216,5 +236,6 @@ int main(){
   writeString("    ");
 
   //ToDo: add sound at the end of the game
+  
   return 0;
 }
