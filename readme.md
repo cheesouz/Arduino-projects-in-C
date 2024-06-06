@@ -1,15 +1,18 @@
 ## Lucy Poplawska ACS105A - Infrastructure 2 Projects
 
+🦖 **Final** **project:** **T-Rex** 🦖
+
 ### Week 1
 - [x] LED library
 - [x] LED dimmer
 - [x] LED chaos
 ### Week 2
 - [ ] Morse Trainer
-- [ ] Simon Says
-Exercises: 2.7.1, 2.7.2(pointerPract_1, pointerPract_2, pointerPract_3)
+- [x] Simon Says
+Exercises: 
+2.7.1, 2.7.2(pointerPract_1, pointerPract_2, pointerPract_3)
 ### Week 3
-- [ ] Nim
+- [x] Nim
 Exercises: 3.5.1, 3.5.2, 3.5.3
 ### Week 4
 - [ ] LunarLander

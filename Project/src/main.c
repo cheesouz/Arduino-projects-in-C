@@ -9,13 +9,14 @@
 #include <avr/interrupt.h>
 #include <stdio.h>
 
-#define BUTTON_PORT PORTC
-#define BUTTON_PIN PINC
-#define BUTTON_DDR DDRC
-#define BUTTON1 PC1
-#define BUTTON3 PC3
 #define INITIAL_GAME_SPEED 500
 #define INITIAL_NUMBER_OF_LIVES 4
+
+/* Segment byte maps for dino's positions: up, normal, down */
+const uint8_t DINO_POS[] =  {0x9C, 0xA3, 0xF7};
+
+/* Segment byte maps for arrow's positions: up, normal, down */
+const uint8_t ARROW_HEIGHT[] =  {0xFE, 0xBF, 0xF7};
 
 static int counter = 0;
 static int dinoPos = 1;
@@ -24,6 +25,7 @@ static int gameSpeed = INITIAL_GAME_SPEED;
 static int currentScore = 0;
 static int lives = INITIAL_NUMBER_OF_LIVES;
 static int updateArrayOfScoresFlag = 0;
+static int lastSpeedIncreaseScore = 0;
 
 // initiating arrowPosition and arrowHeight using pointers
   static int arrowPosition = 4;
@@ -59,15 +61,18 @@ void initTimer0()
     TIMSK0 |= _BV(TOIE0); // enable overflow interrupt
 }
 
-void setupButtons(){
-  BUTTON_DDR &= ~_BV( BUTTON1 );          
-  BUTTON_DDR &= ~_BV( BUTTON3 );
-  BUTTON_PORT |= _BV( BUTTON1 );  
-  BUTTON_PORT |= _BV( BUTTON3 );
-  //in Pin Change Interrupt Control Register activate port C
-  PCICR |= _BV( PCIE1 );
-  PCMSK1 |= _BV( BUTTON1 );
-  PCMSK1 |= _BV( BUTTON3 );
+void displayArrow(int segment, int height) {
+  cbi(PORTD, LATCH_DIO);
+  shift(ARROW_HEIGHT[height], MSBFIRST);
+  shift(SEGMENT_SELECT[segment-1], MSBFIRST);
+  sbi(PORTD, LATCH_DIO);
+}
+
+void displayDino(uint8_t value) {
+  cbi(PORTD, LATCH_DIO);
+  shift(DINO_POS[value], MSBFIRST);
+  shift(0xF1, MSBFIRST);
+  sbi(PORTD, LATCH_DIO);
 }
 
 void shootNewArrow(){
@@ -79,7 +84,10 @@ void loseLife(){
   updateArrayOfScoresFlag = 1;
   lives--;
   gameSpeed = INITIAL_GAME_SPEED;
+  lastSpeedIncreaseScore = 0;
   printf("You lost a life!\n");
+  dinoPos = 1;
+  dinoMoveFlag = 1;
   //to ensure that the correct number of lives is displayed
   lightDownAllLeds();
   playTone(A5, 800);
@@ -102,17 +110,15 @@ void handleCollision(int *arrowHeight) {
       loseLife();
   } else {
       currentScore++;
-      printf("Current score: %d\n", currentScore);
+      //printf("Current score: %d\n", currentScore);
   }
 }
 
 void increaseSpeed() {
-    static int lastSpeedIncreaseScore = 0; // Track the score at the last speed increase
-
-    if (currentScore > lastSpeedIncreaseScore && (currentScore - lastSpeedIncreaseScore) >= 3) {
+    if (currentScore > lastSpeedIncreaseScore && (currentScore - lastSpeedIncreaseScore) >= 6) {
         gameSpeed = (int)(gameSpeed * 0.8 + 0.5);
         printf("Time to speed up! Game Speed: %d\n", gameSpeed);
-        lastSpeedIncreaseScore = currentScore; // Update the last speed increase score
+        lastSpeedIncreaseScore = currentScore;
     }
 }
 
@@ -121,7 +127,6 @@ ISR( PCINT1_vect ){
     //debounce
     _delay_ms( 50 );
     if (bit_is_clear(BUTTON_PIN, BUTTON1)){
-      //ToDo: Check if dino is in a neutral position
       if (dinoMoveFlag == 1){ dinoMoveFlag = 0; }
   }
   }
@@ -182,6 +187,7 @@ int main(){
   initDisplay();
   initTimer0();
   setupButtons();
+  clearDisplay();
   printf("\n\n\nSTART\n");
 
   enableAllLeds();
@@ -208,7 +214,7 @@ int main(){
     if (updateArrayOfScoresFlag){
       updateArrayOfScoresFlag = 0;
       int idx = INITIAL_NUMBER_OF_LIVES - lives - 1;
-      printf("\t\t\t\t\t\tScore from round %d: %d\n", idx, currentScore);
+      printf("\nScore from round %d: %d\n\n", idx, currentScore);
       arrayOfScores[idx] = currentScore;
       currentScore = 0;
     }
@@ -229,7 +235,7 @@ int main(){
   free(arrayOfScores);
 
   writeStringAndWait("GAME", 800);
-  writeStringAndWait("DONE", 800);
+  writeStringAndWait("OVER", 800);
   writeNumberAndWait(totalScore, 800);
   writeString("    ");
 

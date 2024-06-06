@@ -16,7 +16,7 @@ const uint8_t SEGMENT_MAP[] = {0xC0, 0xF9, 0xA4, 0xB0, 0x99,
                                0x92, 0x82, 0xF8, 0X80, 0X90};
 
 /* Byte maps to select digit 1 to 4 */
-const uint8_t SEGMENT_SELECT[] = {0xF1, 0xF2, 0xF4, 0xF8};
+uint8_t SEGMENT_SELECT[] = {0xF1, 0xF2, 0xF4, 0xF8};
 
 void initDisplay() {
   sbi(DDRD, LATCH_DIO);
@@ -113,4 +113,11 @@ for (int i = 0; i < delay / 20; i++) {
     writeCharToSegment(3, str[3]);
     _delay_ms(5);
   }
+}
+
+void clearDisplay(){
+    cbi(PORTD, LATCH_DIO);
+    shift(0x00, MSBFIRST); 
+    shift(0x00, MSBFIRST); 
+    sbi(PORTD, LATCH_DIO);
 }

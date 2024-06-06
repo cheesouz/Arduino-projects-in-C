@@ -79,3 +79,16 @@ for (int i = 1; i < duration; i++){
     dimLed(led, currentDimLevel, duration/100);
 };
 };
+
+void niceLedLightUp(int duration){
+    fadeInLed(0, duration);
+    int ledsOn = 1;
+    while (ledsOn < NUMBER_OF_LEDS)
+    {
+        lightUpMultipleLeds(ledsOn);
+        fadeInLed(ledsOn, duration);
+        ledsOn++;
+    }
+    
+    
+}

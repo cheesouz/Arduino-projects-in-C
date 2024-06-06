@@ -8,6 +8,7 @@ void enableBuzzer()
 
 void playTone( float frequency, uint32_t duration )
 {
+   enableBuzzer();
    uint32_t periodInMicro = ( uint32_t ) ( 1000000 / frequency ); //Calculate the period in microsecs from the freq
    uint32_t durationInMicro = duration * 1000; //We express duration in microsecs
    for ( uint32_t time = 0; time < durationInMicro; time += periodInMicro ) //See tutorial on Music for more info!
@@ -17,6 +18,7 @@ void playTone( float frequency, uint32_t duration )
     PORTD |= ( 1 << PD3 ); //Turn the buzzer off
     _delay_us( periodInMicro / 2 ); //Wait again for half of the period
     }
+    disableBuzzer();
 }
 
 void disableBuzzer()

@@ -16,13 +16,7 @@ const uint8_t SEGMENT_MAP[] = {0xC0, 0xF9, 0xA4, 0xB0, 0x99,
                                0x92, 0x82, 0xF8, 0X80, 0X90};
 
 /* Byte maps to select digit 1 to 4 */
-const uint8_t SEGMENT_SELECT[] = {0xF1, 0xF2, 0xF4, 0xF8};
-
-/* Segment byte maps for dino's positions: up, normal, down */
-const uint8_t DINO_POS[] =  {0x9C, 0xA3, 0xF7};
-
-/* Segment byte maps for arrow's positions: up, normal, down */
-const uint8_t ARROW_HEIGHT[] =  {0xFE, 0xBF, 0xF7};
+uint8_t SEGMENT_SELECT[] = {0xF1, 0xF2, 0xF4, 0xF8};
 
 void initDisplay() {
   sbi(DDRD, LATCH_DIO);
@@ -126,20 +120,4 @@ void clearDisplay(){
     shift(0x00, MSBFIRST); 
     shift(0x00, MSBFIRST); 
     sbi(PORTD, LATCH_DIO);
-}
-
-void displayArrow(int segment, int height) {
-  // clearDisplay();
-  cbi(PORTD, LATCH_DIO);
-  shift(ARROW_HEIGHT[height], MSBFIRST);
-  shift(SEGMENT_SELECT[segment-1], MSBFIRST);
-  sbi(PORTD, LATCH_DIO);
-}
-
-void displayDino(uint8_t value) {
-  // clearDisplay();
-  cbi(PORTD, LATCH_DIO);
-  shift(DINO_POS[value], MSBFIRST);
-  shift(0xF1, MSBFIRST);
-  sbi(PORTD, LATCH_DIO);
 }
